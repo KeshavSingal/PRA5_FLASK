@@ -9,6 +9,7 @@ import time
 application = Flask(__name__)
 app = application  # For local testing convenience
 
+
 def load_model():
     """Load the ML model and vectorizer"""
     try:
@@ -24,8 +25,10 @@ def load_model():
         print(f"Error loading models: {str(e)}")
         raise
 
+
 # Load models at startup
 model, vectorizer = load_model()
+
 
 @application.route('/')
 def home():
@@ -34,6 +37,7 @@ def home():
         "status": "healthy",
         "message": "Fake News Detector API is running!"
     })
+
 
 @application.route('/predict', methods=['POST'])
 def predict():
@@ -54,7 +58,14 @@ def predict():
 
         # Make prediction
         prediction = model.predict(text_vectorized)[0]
-        prediction_value = int(prediction)
+
+        # Convert prediction to integer (1 for FAKE, 0 for REAL)
+        if isinstance(prediction, (np.str_, str)):
+            prediction_value = 1 if prediction.upper() == 'FAKE' else 0
+        elif isinstance(prediction, (np.integer, int)):
+            prediction_value = int(prediction)
+        else:
+            prediction_value = 1 if str(prediction).upper() == 'FAKE' else 0
 
         # Calculate latency
         latency = time.time() - start_time
@@ -68,7 +79,9 @@ def predict():
         })
 
     except Exception as e:
+        print(f"Error in prediction: {str(e)}")  # Add debugging information
         return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     # Use application.run() for consistency

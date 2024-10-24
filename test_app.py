@@ -6,12 +6,12 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from application import application  # Note the change here
+from application import application
 
 class TestFakeNewsDetector(unittest.TestCase):
     def setUp(self):
         """Initialize test environment before each test"""
-        self.app = application.test_client()  # Note the change here
+        self.app = application.test_client()
         # Test cases with two fake and two real news examples
         self.test_cases = {
             'fake_news_1': "BREAKING: Scientists discover that chocolate cures all diseases overnight!",
@@ -99,7 +99,7 @@ class TestFakeNewsDetector(unittest.TestCase):
 
         plot_path = os.path.join('test_results', 'latency_boxplot.png')
         plt.savefig(plot_path)
-        plt.close()  # Close the figure to free memory
+        plt.close()
 
         print("\nLatency Statistics:")
         print("-" * 50)
@@ -115,12 +115,15 @@ class TestFakeNewsDetector(unittest.TestCase):
 
 def run_all_tests():
     """Run all tests including latency tests and generate plots"""
+    # Create test instance
+    tester = TestFakeNewsDetector()
+    tester.setUp()  # Initialize the test cases
+
     # Run unit tests
     suite = unittest.TestLoader().loadTestsFromTestCase(TestFakeNewsDetector)
     unittest.TextTestRunner(verbosity=2).run(suite)
 
     # Run latency tests and generate plots
-    tester = TestFakeNewsDetector()
     print("\nRunning latency tests...")
     print("=" * 50)
     results = tester.perform_latency_test()
