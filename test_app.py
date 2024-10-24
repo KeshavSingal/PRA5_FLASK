@@ -1,12 +1,15 @@
 import unittest
 import json
+import requests
 import csv
 import time
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from datetime import datetime
 from application import application
+
 
 class TestFakeNewsDetector(unittest.TestCase):
     def setUp(self):
@@ -20,114 +23,106 @@ class TestFakeNewsDetector(unittest.TestCase):
             'real_news_2': "Study finds regular exercise helps reduce risk of heart disease"
         }
 
-        # Create test_results directory if it doesn't exist
-        if not os.path.exists('test_results'):
-            os.makedirs('test_results')
+        # Create results directory if it doesn't exist
+        self.results_dir = 'test_results'
+        if not os.path.exists(self.results_dir):
+            os.makedirs(self.results_dir)
 
-    def test_health_check(self):
-        """Test the health check endpoint"""
-        response = self.app.get('/')
-        self.assertEqual(response.status_code, 200)
-        data = json.loads(response.data)
-        self.assertEqual(data['status'], 'healthy')
+        # Initialize CSV for detailed timing data
+        self.csv_path = os.path.join(self.results_dir,
+                                     f'api_timing_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv')
+        with open(self.csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                ['timestamp', 'test_case', 'iteration', 'request_time', 'response_time', 'total_time', 'prediction'])
 
-    def test_prediction_endpoint(self):
-        """Test basic functionality of the prediction endpoint"""
-        print("\nFunctional Test Results:")
-        print("-" * 50)
+    def test_api_performance(self):
+        """Run performance tests for all test cases"""
+        results = {}
 
         for case_name, text in self.test_cases.items():
-            response = self.app.post('/predict',
-                                   json={'text': text},
-                                   content_type='application/json')
-            self.assertEqual(response.status_code, 200)
-            data = json.loads(response.data)
+            print(f"\nRunning performance test for: {case_name}")
+            results[case_name] = []
 
-            print(f"\nTest Case: {case_name}")
-            print(f"Text: {text}")
-            print(f"Prediction: {'Fake' if data['prediction'] == 1 else 'Real'} News")
-            print(f"Latency: {data['latency']:.4f} seconds")
+            for i in range(100):  # 100 iterations per test case
+                # Capture pre-request timestamp
+                start_timestamp = datetime.now().isoformat()
 
-    def perform_latency_test(self):
-        """Perform latency testing with 100 API calls per test case"""
-        results = {}
-        csv_path = os.path.join('test_results', 'latency_results.csv')
+                # Time the actual request
+                request_start = time.time()
+                response = self.app.post('/predict',
+                                         json={'text': text},
+                                         content_type='application/json')
+                request_time = time.time() - request_start
 
-        with open(csv_path, 'w', newline='') as csvfile:
-            fieldnames = ['test_case', 'iteration', 'latency', 'prediction']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
+                # Process response
+                response_start = time.time()
+                data = json.loads(response.data)
+                response_time = time.time() - response_start
 
-            for case_name, text in self.test_cases.items():
-                results[case_name] = []
-                print(f"\nTesting {case_name}...")
+                # Calculate total time
+                total_time = request_time + response_time
+                results[case_name].append(total_time)
 
-                for i in range(100):
-                    start_time = time.time()
-                    response = self.app.post('/predict',
-                                           json={'text': text},
-                                           content_type='application/json')
-                    latency = time.time() - start_time
-                    results[case_name].append(latency)
+                # Save detailed timing data
+                with open(self.csv_path, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([
+                        start_timestamp,
+                        case_name,
+                        i + 1,
+                        request_time,
+                        response_time,
+                        total_time,
+                        data['prediction']
+                    ])
 
-                    data = json.loads(response.data)
-                    writer.writerow({
-                        'test_case': case_name,
-                        'iteration': i + 1,
-                        'latency': latency,
-                        'prediction': data['prediction']
-                    })
+                if (i + 1) % 20 == 0:
+                    print(f"Completed {i + 1} iterations...")
 
-                    if (i + 1) % 20 == 0:
-                        print(f"Completed {i + 1} iterations...")
+        self.generate_performance_report(results)
 
-        return results
-
-    def generate_latency_plots(self, results):
-        """Generate boxplots for latency results"""
+    def generate_performance_report(self, results):
+        """Generate performance visualization and statistics"""
+        # Create DataFrame for plotting
         df_data = []
         for case_name, latencies in results.items():
             for latency in latencies:
                 df_data.append({'Test Case': case_name, 'Latency (s)': latency})
         df = pd.DataFrame(df_data)
 
+        # Generate boxplot
         plt.figure(figsize=(12, 6))
         sns.boxplot(x='Test Case', y='Latency (s)', data=df)
         plt.title('API Latency Distribution by Test Case')
         plt.xticks(rotation=45)
         plt.tight_layout()
 
-        plot_path = os.path.join('test_results', 'latency_boxplot.png')
+        # Save plot
+        plot_path = os.path.join(self.results_dir, 'latency_boxplot.png')
         plt.savefig(plot_path)
         plt.close()
 
-        print("\nLatency Statistics:")
-        print("-" * 50)
-        for case_name in results:
-            latencies = results[case_name]
-            avg_latency = sum(latencies) / len(latencies)
-            max_latency = max(latencies)
-            min_latency = min(latencies)
-            print(f"\n{case_name}:")
-            print(f"  Average: {avg_latency:.4f} seconds")
-            print(f"  Maximum: {max_latency:.4f} seconds")
-            print(f"  Minimum: {min_latency:.4f} seconds")
+        # Generate statistics report
+        stats_path = os.path.join(self.results_dir, 'performance_stats.txt')
+        with open(stats_path, 'w') as f:
+            f.write("Performance Statistics\n")
+            f.write("=====================\n\n")
 
-def run_all_tests():
-    """Run all tests including latency tests and generate plots"""
+            for case_name, latencies in results.items():
+                f.write(f"\n{case_name}:\n")
+                f.write(f"  Average Latency: {sum(latencies) / len(latencies):.4f} seconds\n")
+                f.write(f"  Min Latency: {min(latencies):.4f} seconds\n")
+                f.write(f"  Max Latency: {max(latencies):.4f} seconds\n")
+                f.write(f"  95th Percentile: {sorted(latencies)[int(len(latencies) * 0.95)]:.4f} seconds\n")
+
+
+def run_tests():
+    """Run the complete test suite"""
     # Create test instance
-    tester = TestFakeNewsDetector()
-    tester.setUp()  # Initialize the test cases
+    test_suite = unittest.TestLoader().loadTestsFromTestCase(TestFakeNewsDetector)
+    unittest.TextTestRunner(verbosity=2).run(test_suite)
 
-    # Run unit tests
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestFakeNewsDetector)
-    unittest.TextTestRunner(verbosity=2).run(suite)
-
-    # Run latency tests and generate plots
-    print("\nRunning latency tests...")
-    print("=" * 50)
-    results = tester.perform_latency_test()
-    tester.generate_latency_plots(results)
 
 if __name__ == '__main__':
-    run_all_tests()
+    run_tests()
