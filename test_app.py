@@ -6,13 +6,12 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from application import app
-
+from application import application  # Note the change here
 
 class TestFakeNewsDetector(unittest.TestCase):
     def setUp(self):
         """Initialize test environment before each test"""
-        self.app = app.test_client()
+        self.app = application.test_client()  # Note the change here
         # Test cases with two fake and two real news examples
         self.test_cases = {
             'fake_news_1': "BREAKING: Scientists discover that chocolate cures all diseases overnight!",
@@ -25,6 +24,13 @@ class TestFakeNewsDetector(unittest.TestCase):
         if not os.path.exists('test_results'):
             os.makedirs('test_results')
 
+    def test_health_check(self):
+        """Test the health check endpoint"""
+        response = self.app.get('/')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertEqual(data['status'], 'healthy')
+
     def test_prediction_endpoint(self):
         """Test basic functionality of the prediction endpoint"""
         print("\nFunctional Test Results:")
@@ -32,8 +38,8 @@ class TestFakeNewsDetector(unittest.TestCase):
 
         for case_name, text in self.test_cases.items():
             response = self.app.post('/predict',
-                                     json={'text': text},
-                                     content_type='application/json')
+                                   json={'text': text},
+                                   content_type='application/json')
             self.assertEqual(response.status_code, 200)
             data = json.loads(response.data)
 
@@ -44,9 +50,6 @@ class TestFakeNewsDetector(unittest.TestCase):
 
     def perform_latency_test(self):
         """Perform latency testing with 100 API calls per test case"""
-        if not hasattr(self, 'test_cases'):
-            self.setUp()
-
         results = {}
         csv_path = os.path.join('test_results', 'latency_results.csv')
 
@@ -62,8 +65,8 @@ class TestFakeNewsDetector(unittest.TestCase):
                 for i in range(100):
                     start_time = time.time()
                     response = self.app.post('/predict',
-                                             json={'text': text},
-                                             content_type='application/json')
+                                           json={'text': text},
+                                           content_type='application/json')
                     latency = time.time() - start_time
                     results[case_name].append(latency)
 
@@ -110,7 +113,6 @@ class TestFakeNewsDetector(unittest.TestCase):
             print(f"  Maximum: {max_latency:.4f} seconds")
             print(f"  Minimum: {min_latency:.4f} seconds")
 
-
 def run_all_tests():
     """Run all tests including latency tests and generate plots"""
     # Run unit tests
@@ -123,7 +125,6 @@ def run_all_tests():
     print("=" * 50)
     results = tester.perform_latency_test()
     tester.generate_latency_plots(results)
-
 
 if __name__ == '__main__':
     run_all_tests()

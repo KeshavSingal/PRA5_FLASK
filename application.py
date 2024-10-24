@@ -5,19 +5,17 @@ import pickle
 import numpy as np
 import time
 
-# Initialize Flask app
-app = Flask(__name__)
-
+# Initialize Flask app - name must be 'application' for Elastic Beanstalk
+application = Flask(__name__)
+app = application  # For local testing convenience
 
 def load_model():
     """Load the ML model and vectorizer"""
     try:
         # Loading the model from pickle file
-        loaded_model = None
         with open('basic_classifier.pkl', 'rb') as fid:
             loaded_model = pickle.load(fid)
 
-        vectorizer = None
         with open('count_vectorizer.pkl', 'rb') as vd:
             vectorizer = pickle.load(vd)
 
@@ -26,18 +24,20 @@ def load_model():
         print(f"Error loading models: {str(e)}")
         raise
 
-
 # Load models at startup
 model, vectorizer = load_model()
 
-
-@app.route('/')
+@application.route('/')
 def home():
-    return "Fake News Detector API is running!"
+    """Health check endpoint"""
+    return jsonify({
+        "status": "healthy",
+        "message": "Fake News Detector API is running!"
+    })
 
-
-@app.route('/predict', methods=['POST'])
+@application.route('/predict', methods=['POST'])
 def predict():
+    """Endpoint to predict if news is fake or real"""
     try:
         # Start timing for latency measurement
         start_time = time.time()
@@ -54,12 +54,7 @@ def predict():
 
         # Make prediction
         prediction = model.predict(text_vectorized)[0]
-
-        # Convert prediction to integer if it's a string
-        if isinstance(prediction, str):
-            prediction_value = 1 if prediction == 'FAKE' else 0
-        else:
-            prediction_value = int(prediction)
+        prediction_value = int(prediction)
 
         # Calculate latency
         latency = time.time() - start_time
@@ -75,6 +70,6 @@ def predict():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Use application.run() for consistency
+    application.run(debug=True, port=5000)
